@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Expense Flow</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800;9..144,900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          display: ['Fraunces', 'Georgia', 'serif'],
+          mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script type="module" src="src/main.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+<style>
+  :root {
+    --paper: #FAF7EF;
+    --sheet: #FFFEFA;
+    --sheet-2: #F4EFE1;
+    --ink: #1B1A17;
+    --ink-soft: #57544A;
+    --rule: rgba(27, 26, 23, 0.18);
+    --gold: #F2B705;
+    --gold-hot: #E8890C;
+    --gold-pale: #FCEBB0;
+    --danger: #B3261E;
+    --danger-pale: #FBE4E1;
+  }
+  html { background: var(--paper); }
+  body {
+    min-height: 100vh;
+    color: var(--ink);
+    background-color: var(--paper);
+    background-image: radial-gradient(rgba(27,26,23,.14) 1px, transparent 1.2px);
+    background-size: 22px 22px;
+  }
+  [x-cloak] { display: none !important; }
+  .num { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* Folha de papel */
+  .sheet { background: var(--sheet); border: 2px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); }
+  .sheet-title {
+    font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 1.35rem; line-height: 1.2;
+    padding-bottom: .55rem; margin-bottom: 1.25rem; border-bottom: 4px double var(--ink);
+  }
+  .muted { color: var(--ink-soft); }
+
+  /* Capa com lombada perfurada */
+  .sheet.cover { position: relative; padding-left: 4.5rem; }
+  .cover::before {
+    content: ''; position: absolute; inset: 0 auto 0 0; width: 2.75rem;
+    background:
+      radial-gradient(circle at 50% 50%, var(--paper) 0 .4rem, var(--ink) .4rem .5rem, transparent .5rem) 0 0 / 100% 1.75rem repeat-y,
+      var(--gold);
+    border-right: 2px solid var(--ink);
+  }
+  @media (max-width: 480px) { .sheet.cover { padding-left: 3.5rem; } .cover::before { width: 2rem; } }
+
+  /* Campos */
+  .field-label { display: block; font-size: .875rem; font-weight: 600; margin-bottom: .375rem; }
+  .field {
+    width: 100%; padding: .65rem .8rem; background: #fff; color: var(--ink);
+    border: 2px solid var(--ink); border-radius: 0;
+    box-shadow: inset 2px 2px 0 rgba(27,26,23,.12);
+    font: inherit; min-height: 2.75rem;
+  }
+  .field::placeholder { color: #7A7566; }
+  .field:focus { outline: 3px solid var(--gold-hot); outline-offset: 2px; background: var(--gold-pale); }
+  .field.is-error { border-color: var(--danger); background: var(--danger-pale); box-shadow: inset 2px 2px 0 rgba(179,38,30,.25); }
+  .field-prefix { position: relative; }
+  .field-prefix > span { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); font-weight: 600; pointer-events: none; }
+  .field-prefix > .field { padding-left: 2.6rem; }
+  select.field {
+    appearance: none; padding-right: 2.5rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%231B1A17' stroke-width='2.4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right .8rem center; background-size: .8rem;
+  }
+  .field-error { display: flex; gap: .35rem; align-items: flex-start; margin-top: .4rem; font-size: .85rem; font-weight: 600; color: var(--danger); }
+
+  /* Botões */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    min-height: 2.75rem; padding: .55rem 1.1rem; white-space: nowrap;
+    font: 600 .95rem/1 'IBM Plex Sans', sans-serif; color: var(--ink);
+    border: 2px solid var(--ink); border-radius: 0; cursor: pointer;
+    box-shadow: 3px 3px 0 var(--ink);
+    transition: transform .08s, box-shadow .08s, background-color .08s;
+  }
+  .btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+  .btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+  .btn-primary { background: var(--gold); }
+  .btn-primary:hover { background: #FFC81A; }
+  .btn-secondary { background: #fff; }
+  .btn-secondary:hover { background: var(--sheet-2); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #C9342B; }
+  .btn-icon { min-height: 2.5rem; min-width: 2.5rem; padding: 0; box-shadow: 2px 2px 0 var(--ink); background: #fff; }
+  .btn-icon.edit:hover { background: var(--gold); }
+  .btn-icon.remove:hover { background: var(--danger); color: #fff; }
+  :focus-visible { outline: 3px solid var(--gold-hot); outline-offset: 2px; }
+
+  /* Selo de categoria */
+  .tag {
+    display: inline-flex; align-items: center; gap: .45rem; max-width: 100%;
+    padding: .2rem .6rem; background: #fff; border: 2px solid var(--ink);
+    font-size: .8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tag i { width: .7rem; height: .7rem; border: 1.5px solid var(--ink); flex: none; }
+
+  /* Totais em partida dobrada */
+  .total-figure { display: inline-block; font-weight: 600; border-bottom: 6px double var(--ink); padding-bottom: .15rem; max-width: 100%; overflow-wrap: anywhere; }
+
+  /* Livro-caixa */
+  .ledger {
+    border: 2px solid var(--ink);
+    background:
+      linear-gradient(90deg, transparent 3.4rem, rgba(179,38,30,.55) 3.4rem calc(3.4rem + 2px), transparent calc(3.4rem + 2px)),
+      var(--sheet);
+  }
+  .ledger-head { display: none; background: var(--ink); color: var(--sheet); font-weight: 600; font-size: .85rem; }
+  .ledger-row { display: grid; gap: .5rem .9rem; align-items: center; padding: .8rem 1rem .8rem 4.4rem; border-bottom: 1px solid var(--rule); grid-template-columns: minmax(0, 1fr) auto; }
+  .ledger-row:last-child { border-bottom: 0; }
+  .ledger-row .cell-tag { grid-column: 1 / -1; }
+  .ledger-row .cell-desc { min-width: 0; overflow-wrap: anywhere; }
+  .ledger-row .cell-val { text-align: right; font-weight: 600; white-space: nowrap; }
+  .ledger-row .cell-act { grid-column: 1 / -1; display: flex; gap: .5rem; }
+  .ledger-row:hover { background: var(--gold-pale); }
+  @media (min-width: 720px) {
+    .ledger-row .cell-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ledger-head, .ledger-row { display: grid; grid-template-columns: 10.5rem minmax(0, 1fr) 8.5rem 6.25rem; }
+    .ledger-head { padding: .6rem 1rem .6rem 4.4rem; gap: .9rem; }
+    .ledger-row .cell-tag, .ledger-row .cell-act { grid-column: auto; }
+    .ledger-row .cell-act { justify-content: flex-end; }
+  }
+  @media (max-width: 480px) {
+    .ledger { background: var(--sheet); }
+    .ledger-row { padding-left: 1rem; }
+  }
+
+  /* Estados vazios */
+  .empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 2.5rem 1rem; }
+  .empty-icon { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; margin-bottom: 1rem; background: var(--gold); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+
+  /* Carimbo de retorno */
+  .stamp {
+    display: flex; align-items: center; gap: .75rem; padding: .6rem .6rem .6rem 1rem;
+    background: var(--gold); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
+    font-weight: 600; transform: rotate(-1.5deg); animation: stamp-in .18s ease-out;
+  }
+  .stamp.error { background: var(--danger); color: #fff; }
+  .stamp button { background: transparent; border: 0; color: inherit; cursor: pointer; min-width: 2.25rem; min-height: 2.25rem; font-size: 1.4rem; line-height: 1; }
+  @keyframes stamp-in { from { transform: rotate(-6deg) scale(1.35); opacity: 0; } to { transform: rotate(-1.5deg) scale(1); opacity: 1; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn { transition: none; }
+    .stamp { animation: none; }
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--sheet-2); }
+  ::-webkit-scrollbar-thumb { background: var(--ink); }
+</style>
+</head>
+<body class="font-sans antialiased">
+
+<div x-data="expenseFlow()" x-cloak class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+
+  <!-- Capa -->
+  <header class="sheet cover px-5 sm:px-7 py-5 mb-6 sm:mb-8">
+    <h1 class="font-display text-3xl sm:text-4xl font-black tracking-tight leading-none">Expense Flow</h1>
+    <p class="muted text-sm sm:text-base mt-2">Livro-caixa dos seus gastos: anote, filtre e acompanhe o saldo.</p>
+  </header>
+
+  <!-- Aviso de orçamento estourado -->
+  <div
+    x-show="orcamentoEstourado"
+    x-cloak
+    role="alert"
+    class="flex items-start gap-3 px-5 py-4 mb-6 sm:mb-8 border-2 border-[var(--ink)] bg-[var(--danger)] text-white shadow-[6px_6px_0_var(--ink)]"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true">
+      <path d="M12 9v4M12 17h.01" />
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+    </svg>
+    <p class="font-semibold">Orçamento estourado: seus gastos ultrapassaram o valor definido.</p>
+  </div>
+
+  <!-- Resumo + gráfico -->
+  <section class="grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-8 mb-6 sm:mb-8">
+
+    <div class="lg:col-span-2 sheet p-6 sm:p-7 min-w-0">
+      <h2 class="sheet-title">Resumo</h2>
+
+      <div class="mb-7">
+        <p class="text-sm font-semibold mb-2">Total gasto</p>
+        <p class="num total-figure text-3xl sm:text-4xl" x-text="formatCurrency(filteredTotal)"></p>
+        <p class="muted text-sm mt-3">
+          <span x-text="expenses.length"></span>
+          <span x-text="expenses.length === 1 ? 'lançamento registrado' : 'lançamentos registrados'"></span>
+        </p>
+      </div>
+
+      <div class="pt-5 border-t-2 border-[var(--ink)]">
+        <p class="text-sm font-semibold mb-2">Saldo disponível</p>
+
+        <template x-if="!editingBudget">
+          <div>
+            <template x-if="budget === null">
+              <button type="button" @click="startEditBudget()" class="btn btn-primary">Definir orçamento</button>
+            </template>
+            <template x-if="budget !== null">
+              <div>
+                <p class="num total-figure text-3xl sm:text-4xl" :class="orcamentoEstourado ? 'text-[var(--danger)]' : ''" x-text="formatCurrency(saldoDisponivel)"></p>
+                <div class="mt-4">
+                  <button type="button" @click="startEditBudget()" class="btn btn-secondary">Alterar orçamento</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <template x-if="editingBudget">
+          <div>
+            <label for="budget-input" class="field-label">Orçamento total</label>
+            <div class="field-prefix max-w-xs">
+              <span class="num" aria-hidden="true">R$</span>
+              <input
+                id="budget-input"
+                type="number" step="0.01" min="0"
+                x-ref="budgetInput"
+                x-model="budgetInput"
+                @keydown.enter.prevent="commitBudget()"
+                @keydown.escape="cancelEditBudget()"
+                class="field num"
+              />
+            </div>
+            <div class="flex flex-wrap gap-3 mt-4">
+              <button type="button" @click="commitBudget()" class="btn btn-primary">Salvar orçamento</button>
+              <button type="button" @click="cancelEditBudget()" class="btn btn-secondary">Cancelar</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="lg:col-span-3 sheet p-6 sm:p-7 min-w-0">
+      <h2 class="sheet-title">Distribuição por categoria</h2>
+
+      <template x-if="expenses.length === 0">
+        <div class="empty">
+          <div class="empty-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true">
+              <path d="M21 12A9 9 0 1 1 12 3v9Z" />
+              <path d="M15 3.5A9 9 0 0 1 20.5 9H15Z" />
+            </svg>
+          </div>
+          <p class="font-display font-extrabold text-lg">Nenhum gasto por aqui ainda</p>
+          <p class="muted text-sm mt-1 max-w-xs">Adicione seu primeiro lançamento para ver a distribuição por categoria.</p>
+        </div>
+      </template>
+
+      <template x-if="expenses.length > 0">
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-6 items-center">
+          <div class="sm:col-span-2 relative flex items-center justify-center h-48 sm:h-56">
+            <canvas data-chart="donut" x-init="$nextTick(() => renderChart())" role="img" aria-label="Gráfico de rosca com a distribuição dos gastos por categoria"></canvas>
+          </div>
+          <ul class="sm:col-span-3 min-w-0">
+            <template x-for="c in totalsByCategory" :key="c.key">
+              <li class="flex items-center gap-3 py-2 border-b border-[var(--rule)] last:border-0">
+                <span class="w-3.5 h-3.5 shrink-0 border-2 border-[var(--ink)]" :style="{ backgroundColor: c.color }"></span>
+                <span class="text-sm flex-1 truncate" x-text="c.label"></span>
+                <span class="num text-sm muted" x-text="c.percent.toFixed(1) + '%'"></span>
+                <span class="num text-sm font-semibold w-24 text-right" x-text="formatCurrency(c.total)"></span>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- Formulário -->
+  <section class="sheet p-6 sm:p-7 mb-6 sm:mb-8">
+    <h2 class="sheet-title" x-text="form.editingId ? 'Editar lançamento' : 'Novo lançamento'"></h2>
+
+    <form @submit.prevent="form.editingId ? updateExpense() : addExpense()" class="grid grid-cols-1 sm:grid-cols-12 gap-x-4 gap-y-5" novalidate>
+      <div class="sm:col-span-3">
+        <label for="f-valor" class="field-label">Valor</label>
+        <div class="field-prefix">
+          <span class="num" aria-hidden="true">R$</span>
+          <input
+            id="f-valor"
+            type="number" step="0.01" min="0"
+            x-model="form.valor"
+            placeholder="0,00"
+            class="field num"
+            :class="errors.valor ? 'is-error' : ''"
+            :aria-invalid="errors.valor ? 'true' : 'false'"
+            aria-describedby="f-valor-err"
+          />
+        </div>
+        <p id="f-valor-err" x-show="errors.valor" x-cloak class="field-error">
+          <svg class="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg>
+          <span x-text="errors.valor"></span>
+        </p>
+      </div>
+
+      <div class="sm:col-span-5">
+        <label for="f-desc" class="field-label">Descrição</label>
+        <input
+          id="f-desc"
+          type="text"
+          x-model="form.descricao"
+          placeholder="Ex: Almoço com a equipe"
+          class="field"
+          :class="errors.descricao ? 'is-error' : ''"
+          :aria-invalid="errors.descricao ? 'true' : 'false'"
+          aria-describedby="f-desc-err"
+        />
+        <p id="f-desc-err" x-show="errors.descricao" x-cloak class="field-error">
+          <svg class="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg>
+          <span x-text="errors.descricao"></span>
+        </p>
+      </div>
+
+      <div class="sm:col-span-4">
+        <label for="f-cat" class="field-label">Categoria</label>
+        <select id="f-cat" x-model="form.categoria" class="field">
+          <template x-for="c in categories" :key="c.key">
+            <option :value="c.key" x-text="c.label"></option>
+          </template>
+        </select>
+      </div>
+
+      <div class="sm:col-span-12 flex flex-wrap items-center gap-3">
+        <button type="submit" class="btn btn-primary" x-text="form.editingId ? 'Salvar lançamento' : 'Adicionar lançamento'"></button>
+        <button type="button" x-show="form.editingId" x-cloak @click="cancelEdit()" class="btn btn-secondary">Cancelar</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Livro-caixa -->
+  <section class="sheet p-6 sm:p-7">
+    <h2 class="sheet-title">Lançamentos</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-12 gap-4 mb-5" x-show="expenses.length > 0">
+      <div class="sm:col-span-4">
+        <label for="filter-cat" class="field-label">Filtrar por categoria</label>
+        <select id="filter-cat" x-model="filters.categoria" class="field">
+          <option value="todas">Todas as categorias</option>
+          <template x-for="c in categories" :key="c.key">
+            <option :value="c.key" x-text="c.label"></option>
+          </template>
+        </select>
+      </div>
+      <div class="sm:col-span-8">
+        <label for="filter-text" class="field-label">Buscar por descrição</label>
+        <input id="filter-text" type="text" x-model="filters.texto" placeholder="Digite parte da descrição" class="field" />
+      </div>
+    </div>
+
+    <template x-if="expenses.length === 0">
+      <div class="empty border-2 border-dashed border-[var(--ink)]">
+        <div class="empty-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </div>
+        <p class="font-display font-extrabold text-lg">Sua lista está vazia</p>
+        <p class="muted text-sm mt-1 max-w-xs">Use o formulário acima para adicionar seu primeiro gasto.</p>
+      </div>
+    </template>
+
+    <template x-if="expenses.length > 0 && filteredExpenses.length === 0">
+      <div class="empty border-2 border-dashed border-[var(--ink)]">
+        <div class="empty-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m21 21-4.6-4.6" />
+          </svg>
+        </div>
+        <p class="font-display font-extrabold text-lg">Nenhum lançamento encontrado com esse filtro</p>
+        <button type="button" @click="clearFilters()" class="btn btn-secondary mt-5">Limpar filtros</button>
+      </div>
+    </template>
+
+    <div class="ledger" x-show="filteredExpenses.length > 0">
+      <div class="ledger-head" aria-hidden="true">
+        <span>Categoria</span>
+        <span>Descrição</span>
+        <span class="text-right">Valor</span>
+        <span class="text-right">Ações</span>
+      </div>
+      <ul>
+        <template x-for="e in filteredExpenses" :key="e.id">
+          <li class="ledger-row">
+            <span class="cell-tag">
+              <span class="tag"><i :style="{ backgroundColor: categoryColor(e.categoria) }"></i><span class="truncate" x-text="categoryLabel(e.categoria)"></span></span>
+            </span>
+            <span class="cell-desc" :title="e.descricao" x-text="e.descricao"></span>
+            <span class="cell-val num" x-text="formatCurrency(e.valor)"></span>
+            <span class="cell-act">
+              <button type="button" @click="startEdit(e.id)" class="btn btn-icon edit" :aria-label="'Editar ' + e.descricao" title="Editar">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" aria-hidden="true">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </button>
+              <button type="button" @click="requestDelete(e.id)" class="btn btn-icon remove" :aria-label="'Excluir ' + e.descricao" title="Excluir">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" aria-hidden="true">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2m3 0-1 15H6L5 6" />
+                </svg>
+              </button>
+            </span>
+          </li>
+        </template>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Confirmação de exclusão -->
+  <div
+    x-show="deleteTargetId !== null"
+    x-cloak
+    class="fixed inset-0 z-50 flex items-center justify-center px-4"
+    @keydown.escape.window="cancelDelete()"
+  >
+    <div class="absolute inset-0 bg-[rgba(27,26,23,0.6)]" @click="cancelDelete()"></div>
+    <div
+      x-show="deleteTargetId !== null"
+      role="alertdialog" aria-modal="true" aria-labelledby="del-title"
+      x-transition:enter="transition ease-out duration-100"
+      x-transition:enter-start="opacity-0 translate-y-2"
+      x-transition:enter-end="opacity-100 translate-y-0"
+      class="relative sheet p-6 sm:p-7 max-w-sm w-full"
+    >
+      <h3 id="del-title" class="sheet-title !text-xl">Excluir lançamento?</h3>
+      <p class="text-sm mb-6">Essa ação não pode ser desfeita. O lançamento será removido permanentemente.</p>
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button" @click="confirmDelete()" class="btn btn-danger">Excluir</button>
+        <button type="button" @click="cancelDelete()" class="btn btn-secondary">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Carimbos de retorno -->
+  <div class="fixed z-[60] bottom-4 right-4 left-4 sm:left-auto sm:w-80 flex flex-col gap-3" aria-live="polite">
+    <template x-for="t in toasts" :key="t.id">
+      <div class="stamp" :class="t.type === 'error' ? 'error' : ''" :role="t.type === 'error' ? 'alert' : 'status'">
+        <span class="flex-1 text-sm" x-text="t.message"></span>
+        <button type="button" @click="dismissToast(t.id)" aria-label="Fechar aviso">&times;</button>
+      </div>
+    </template>
+  </div>
+
+</div>
+
+</body>
+</html>
